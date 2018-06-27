@@ -1,0 +1,16 @@
+.idea/
+badgeyay.code-workspace
+/*.csv#
+*.badges
+*.swp
+*.pyc
+*.log
+.env
+.vagrant/
+venv/
+.vscode/
+badgeyay/
+.coverage
+*.sublime-project
+*.sublime-workspace
+.DS_Store
