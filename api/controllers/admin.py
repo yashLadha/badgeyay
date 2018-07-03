@@ -1,6 +1,7 @@
 from flask import jsonify, Blueprint, request
 from api.db import db
 from api.models.user import User
+from api.models.socialContent import SocialContent
 from api.models.badges import Badges
 from api.models.file import File
 from api.models.utils import Utilities
@@ -12,7 +13,14 @@ from api.schemas.badges import DatedBadgeSchema
 from api.schemas.badges import AllBadges, AllGenBadges
 from api.schemas.file import FileSchema
 from api.schemas.errors import JsonNotFound
-from api.schemas.admin import AdminSchema, AllUserStat, AdminMailStat, AllAdminRole, DeleteAdminRole
+from api.schemas.admin import (
+    AdminSchema,
+    AllUserStat,
+    AdminMailStat,
+    AllAdminRole,
+    DeleteAdminRole,
+    SocialMedia
+)
 from api.schemas.utils import SetPricingSchema, ReturnSetPricing
 from api.utils.errors import ErrorResponse
 from api.schemas.errors import UserNotFound
@@ -39,11 +47,14 @@ def show_all_users():
     schema = AllUsersSchema(many=True)
     if 'state' in args.keys():
         if args['state'] == 'deleted':
-            users = User.query.filter(User.deleted_at.isnot(None)).paginate(page, app.config['POSTS_PER_PAGE'], False)
+            users = User.query.filter(User.deleted_at.isnot(None)).paginate(
+                page, app.config['POSTS_PER_PAGE'], False)
         if args['state'] == 'active':
-            users = User.query.filter(User.deleted_at.is_(None)).paginate(page, app.config['POSTS_PER_PAGE'], False)
+            users = User.query.filter(User.deleted_at.is_(None)).paginate(
+                page, app.config['POSTS_PER_PAGE'], False)
         if args['state'] == 'all':
-            users = User.query.paginate(page, app.config['POSTS_PER_PAGE'], False)
+            users = User.query.paginate(
+                page, app.config['POSTS_PER_PAGE'], False)
     result = schema.dump(users.items)
     return jsonify(result.data)
 
@@ -106,17 +117,22 @@ def get_admin_stat():
         mail_list.append(mail_resp[key])
     mail_list.sort(key=lambda e: e['date'], reverse=True)
     for item in mail_list:
-        item['date'] = datetime.datetime.strptime(item['date'], '%Y-%m-%dT%H:%M:%SZ')
+        item['date'] = datetime.datetime.strptime(
+            item['date'], '%Y-%m-%dT%H:%M:%SZ')
     curr_date = datetime.datetime.utcnow()
     prev_month_date = curr_date - relativedelta(months=1)
     last_three_days_date = curr_date - relativedelta(days=3)
     last_seven_days_date = curr_date - relativedelta(days=7)
     last_day_date = curr_date - relativedelta(days=1)
 
-    prev_month_cnt = len([mail for mail in mail_list if mail['date'] >= prev_month_date])
-    last_three_days_cnt = len([mail for mail in mail_list if mail['date'] >= last_three_days_date])
-    last_day_cnt = len([mail for mail in mail_list if mail['date'] >= last_day_date])
-    last_seven_days_cnt = len([mail for mail in mail_list if mail['date'] >= last_seven_days_date])
+    prev_month_cnt = len(
+        [mail for mail in mail_list if mail['date'] >= prev_month_date])
+    last_three_days_cnt = len(
+        [mail for mail in mail_list if mail['date'] >= last_three_days_date])
+    last_day_cnt = len(
+        [mail for mail in mail_list if mail['date'] >= last_day_date])
+    last_seven_days_cnt = len(
+        [mail for mail in mail_list if mail['date'] >= last_seven_days_date])
 
     payload = {
         'id': datetime.datetime.utcnow(),
@@ -160,7 +176,8 @@ def all_users_stat():
 @loginRequired
 def get_all_badges():
     page = request.args.get('page', 1, type=int)
-    all_badges = Badges.query.paginate(page, app.config['POSTS_PER_PAGE'], False).items
+    all_badges = Badges.query.paginate(
+        page, app.config['POSTS_PER_PAGE'], False).items
     schema = AllBadges(many=True)
     result = schema.dump(all_badges)
     return jsonify(result.data)
@@ -170,7 +187,8 @@ def get_all_badges():
 @loginRequired
 def get_all_files():
     page = request.args.get('page', 1, type=int)
-    files = File.query.paginate(page, app.config['POSTS_PER_PAGE'], False).items
+    files = File.query.paginate(
+        page, app.config['POSTS_PER_PAGE'], False).items
     return jsonify(FileSchema(many=True).dump(files).data)
 
 
@@ -227,7 +245,8 @@ def get_badges_dated():
     data, err = schema.load(input_data)
     if err:
         return jsonify(err)
-    dated_badges = Badges.query.filter(Badges.created_at <= data.get('end_date')).filter(Badges.created_at >= data.get('start_date'))
+    dated_badges = Badges.query.filter(Badges.created_at <= data.get(
+        'end_date')).filter(Badges.created_at >= data.get('start_date'))
     return jsonify(AllBadges(many=True).dump(dated_badges).data)
 
 
@@ -238,7 +257,8 @@ def get_user_dated():
     data, err = schema.load(input_data)
     if err:
         return jsonify(err)
-    dated_users = User.query.filter(User.created_at <= data.get('end_date')).filter(User.created_at >= data.get('start_date'))
+    dated_users = User.query.filter(User.created_at <= data.get(
+        'end_date')).filter(User.created_at >= data.get('start_date'))
     return jsonify(AllUsersSchema(many=True).dump(dated_users).data)
 
 
@@ -258,3 +278,20 @@ def set_pricing():
         'message': 'Pricing Set Successfully'
     }
     return jsonify(ReturnSetPricing().dump(ret_data).data)
+
+
+@router.route('/social-media', methods=['GET'])
+def get_all_social_media():
+    social_media = SocialContent.query.all()
+    return jsonify(SocialMedia(many=True).dump(social_media).data)
+
+
+@router.route('/social-media/<media>', methods=['PATCH'])
+@adminRequired
+def patch_social_media(media):
+    social_media = SocialContent.check_key(media)
+    if social_media:
+        data = request.get_json()['data']['attributes']
+        social_media.link = data['link']
+        social_media.save_to_db()
+        return jsonify(SocialMedia().dump(social_media).data)
